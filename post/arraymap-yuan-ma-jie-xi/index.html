@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>ArrayMap源码解析 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="上一篇文章提到了SparseArray和HashMap的关系，与SparseArray同样用于改进HashMap效率的还有ArrayMap，当然这两个类都是在特定情况下用于改进效率，并不是任何情况下都优于HashMap，下面将会一步步讲解A..." />
+    <meta name="keywords" content="源码" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">ArrayMap源码解析</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="上一篇文章提到了sparsearray和hashmap的关系与sparsearray同样用于改进hashmap效率的还有arraymap当然这两个类都是在特定情况下用于改进效率并不是任何情况下都优于hashmap下面将会一步步讲解arraymap的内部解构以及代码的组成是什么样的">上一篇文章提到了<code>SparseArray</code>和<code>HashMap</code>的关系，与<code>SparseArray</code>同样用于改进<code>HashMap</code>效率的还有<code>ArrayMap</code>，当然这两个类都是在特定情况下用于改进效率，并不是任何情况下都优于<code>HashMap</code>，下面将会一步步讲解<code>ArrayMap</code>的内部解构以及代码的组成是什么样的</h4>
+<hr>
+<h3 id="1-初始化">1. 初始化</h3>
+<pre><code class="language-java">  // 传入初始容量
+  public ArrayMap(int capacity) {
+      this(capacity, false);
+  }
+  
+  public ArrayMap(int capacity, boolean identityHashCode) {
+      mIdentityHashCode = identityHashCode;
+
+      // 根据传入的初始容量给`mArray` `mHashes`两个数组初始化
+      if (capacity &lt; 0) {
+          mHashes = EMPTY_IMMUTABLE_INTS;
+          mArray = EmptyArray.OBJECT;
+      } else if (capacity == 0) {
+          mHashes = EmptyArray.INT;
+          mArray = EmptyArray.OBJECT;
+      } else {
+          allocArrays(capacity);
+      }
+      mSize = 0;
+  }
+</code></pre>
+<h3 id="2-put操作">2. <code>put</code>操作</h3>
+<blockquote>
+<p><code>put</code>相关的代码比较长，涉及到的逻辑也比较多，在这其中也会设计到扩容以及缓存的优化操作</p>
+</blockquote>
+<pre><code class="language-java">@Override
+public V put(K key, V value) {
+    // 记录下当前长度
+    final int osize = mSize;
+    final int hash;
+    int index;
+    // 如果传入的key为null，那么hash值默认为0，并且indexOfNull会通过二分查找
+    // 返回一个下标，至于具体返回值情况可以看下面的代码分析
+    if (key == null) {
+        hash = 0;
+        index = indexOfNull();
+    } else {
+        // 计算出key的hash值并且计算出对应下标
+        hash = mIdentityHashCode ? System.identityHashCode(key) : key.hashCode();
+        index = indexOf(key, hash);
+    }
+    // 如果下标大于0，也就是说key是存在的，那么直接更新对应的value
+    if (index &gt;= 0) {
+        // 因为array是一个键值对占两个位置，比如0和1存放的是key和对应的value
+        // 所以这里对index左移一位并且+1
+        index = (index&lt;&lt;1) + 1;
+        // 把旧的值更新并且返回
+        final V old = (V)mArray[index];
+        mArray[index] = value;
+        return old;
+    }
+
+    index = ~index;
+    // 判断现有长度和hash数组的长度，去进行扩容操作
+    if (osize &gt;= mHashes.length) {
+        // 计算出扩容后的数组长度
+        final int n = osize &gt;= (BASE_SIZE*2) ? (osize+(osize&gt;&gt;1))
+                : (osize &gt;= BASE_SIZE ? (BASE_SIZE*2) : BASE_SIZE);
+
+        if (DEBUG) Log.d(TAG, &quot;put: grow from &quot; + mHashes.length + &quot; to &quot; + n);
+        
+        // 记录当前数组
+        final int[] ohashes = mHashes;
+        final Object[] oarray = mArray;
+        
+        // 对mHashes mArray两个数组进行扩容操作
+        allocArrays(n);
+
+        // 检查长度避免多线程操作了map
+        if (CONCURRENT_MODIFICATION_EXCEPTIONS &amp;&amp; osize != mSize) {
+            throw new ConcurrentModificationException();
+        }
+        
+        // 把旧的数组移动到扩容后的数组
+        if (mHashes.length &gt; 0) {
+            if (DEBUG) Log.d(TAG, &quot;put: copy 0-&quot; + osize + &quot; to 0&quot;);
+            System.arraycopy(ohashes, 0, mHashes, 0, ohashes.length);
+            System.arraycopy(oarray, 0, mArray, 0, oarray.length);
+        }
+        
+        // 缓存无用的数组
+        freeArrays(ohashes, oarray, osize);
+    }
+    
+    // 当下标是在中间的时候，把index后面(包括index)的所有数据往后移动一位
+    // 然后再把index对应的数据更新就达到了插入的操作
+    if (index &lt; osize) {
+        if (DEBUG) Log.d(TAG, &quot;put: move &quot; + index + &quot;-&quot; + (osize-index)
+                + &quot; to &quot; + (index+1));
+        System.arraycopy(mHashes, index, mHashes, index + 1, osize - index);
+        System.arraycopy(mArray, index &lt;&lt; 1, mArray, (index + 1) &lt;&lt; 1, (mSize - index) &lt;&lt; 1);
+    }
+
+    if (CONCURRENT_MODIFICATION_EXCEPTIONS) {
+        if (osize != mSize || index &gt;= mHashes.length) {
+            throw new ConcurrentModificationException();
+        }
+    }
+    // 更新对应index的值，把size+1记录个数
+    mHashes[index] = hash;
+    mArray[index&lt;&lt;1] = key;
+    mArray[(index&lt;&lt;1)+1] = value;
+    mSize++;
+    return null;
+}
+
+int indexOf(Object key, int hash) {
+    final int N = mSize;
+
+    // Important fast case: if nothing is in here, nothing to look for.
+    // 当前长度为0的时候直接对0取反，也就是返回了-1
+    if (N == 0) {
+        return ~0;
+    }
+    // 二分查找找到hash值要插入的下标
+    int index = binarySearchHashes(mHashes, N, hash);
+
+    // If the hash code wasn't found, then we have no entry for this key.
+    // binarySearchHashes里会把index取反，在put的时候也会再取反一次
+    if (index &lt; 0) {
+        return index;
+    }
+
+    // If the key at the returned index matches, that's what we want.
+    // 如果根据找到的index在mArray里的key值也是相同的就可以直接返回
+    if (key.equals(mArray[index&lt;&lt;1])) {
+        return index;
+    }
+
+    // Search for a matching key after the index.
+    // 如果没找到，那么先向后查找再向前查找有没有对应的键值对存在
+    // 因为上面的二分查找有可能会漏了相同hash值的key，也就是说不同key但是hash值相同
+    // 这个时候直接用index去找可能会漏查，因为相同hash值的时候会插入到index，数据依次往后移
+    // 所以这里先往后查找，再往前查找
+    int end;
+    for (end = index + 1; end &lt; N &amp;&amp; mHashes[end] == hash; end++) {
+        if (key.equals(mArray[end &lt;&lt; 1])) return end;
+    }
+
+    // Search for a matching key before the index.
+    for (int i = index - 1; i &gt;= 0 &amp;&amp; mHashes[i] == hash; i--) {
+        if (key.equals(mArray[i &lt;&lt; 1])) return i;
+    }
+
+    // Key not found -- return negative value indicating where a
+    // new entry for this key should go.  We use the end of the
+    // hash chain to reduce the number of array entries that will
+    // need to be copied when inserting.
+    // 返回 ~0
+    return ~end;
+}
+
+// 和indexof方法的区别在于代码的判断中把hash换成0，把key换成了null，其他逻辑不变
+int indexOfNull() {
+    final int N = mSize;
+
+    // Important fast case: if nothing is in here, nothing to look for.
+    if (N == 0) {
+        return ~0;
+    }
+
+    int index = binarySearchHashes(mHashes, N, 0);
+
+    // If the hash code wasn't found, then we have no entry for this key.
+    if (index &lt; 0) {
+        return index;
+    }
+
+    // If the key at the returned index matches, that's what we want.
+    if (null == mArray[index&lt;&lt;1]) {
+        return index;
+    }
+
+    // Search for a matching key after the index.
+    int end;
+    for (end = index + 1; end &lt; N &amp;&amp; mHashes[end] == 0; end++) {
+        if (null == mArray[end &lt;&lt; 1]) return end;
+    }
+
+    // Search for a matching key before the index.
+    for (int i = index - 1; i &gt;= 0 &amp;&amp; mHashes[i] == 0; i--) {
+        if (null == mArray[i &lt;&lt; 1]) return i;
+    }
+
+    // Key not found -- return negative value indicating where a
+    // new entry for this key should go.  We use the end of the
+    // hash chain to reduce the number of array entries that will
+    // need to be copied when inserting.
+    return ~end;
+}
+</code></pre>
+<h5 id="依照代码可以看出arraymap在put数据的时候会先将keyhash之后把找出hash值在hash数组的位置然后对应的把value插入到对应的下标而hash数组中的顺序是升序排的所以marray中的键值对不是按put的顺序">依照代码可以看出，<code>ArrayMap</code>在<code>put</code>数据的时候会先将<code>key</code>hash之后把找出hash值在hash数组的位置，然后对应的把<code>value</code>插入到对应的下标，而<code>hash数组</code>中的顺序是升序排的，所以<code>mArray</code>中的键值对不是按<code>put</code>的顺序。</h5>
+<hr>
+<h5 id="上面还提到了一个扩容allocarrays以及缓存freearrays的方法也是arraymap一大特色">上面还提到了一个扩容<code>allocArrays</code>以及缓存<code>freeArrays</code>的方法，也是<code>ArrayMap</code>一大特色</h5>
+<pre><code class="language-java">@SuppressWarnings(&quot;ArrayToString&quot;)
+private void allocArrays(final int size) {
+    // 先判断size，因为arraymap只对4/8的长度做优化
+    if (size == (BASE_SIZE*2)) {
+        synchronized (SimpleArrayMap.class) {
+            // mTwiceBaseCache是一个缓存的数组，默认为null，如果有缓存的数组就拿来用
+            if (mTwiceBaseCache != null) {
+                // 先把mTwiceBaseCache保存到array
+                final Object[] array = mTwiceBaseCache;
+                // 把原本存放键值对的数组设为新的array，达到数组扩容的目的
+                mArray = array;
+                // 把缓存节点指向当前数组的第0个元素，把mHash数组指向第1个元素
+                mTwiceBaseCache = (Object[])array[0];
+                mHashes = (int[])array[1];
+                // 再清空数组，这样mArray指向的就是一个长度为size的空数组
+                array[0] = array[1] = null;
+                mTwiceBaseCacheSize--;
+                if (DEBUG) System.out.println(TAG + &quot; Retrieving 2x cache &quot; + mHashes
+                        + &quot; now have &quot; + mTwiceBaseCacheSize + &quot; entries&quot;);
+                return;
+            }
+        }
+    } else if (size == BASE_SIZE) {
+        // 逻辑同上
+        synchronized (SimpleArrayMap.class) {
+            if (mBaseCache != null) {
+                final Object[] array = mBaseCache;
+                mArray = array;
+                mBaseCache = (Object[])array[0];
+                mHashes = (int[])array[1];
+                array[0] = array[1] = null;
+                mBaseCacheSize--;
+                if (DEBUG) System.out.println(TAG + &quot; Retrieving 1x cache &quot; + mHashes
+                        + &quot; now have &quot; + mBaseCacheSize + &quot; entries&quot;);
+                return;
+            }
+        }
+    }
+
+    mHashes = new int[size];
+    mArray = new Object[size&lt;&lt;1];
+}
+
+@SuppressWarnings(&quot;ArrayToString&quot;)
+private static void freeArrays(final int[] hashes, final Object[] array, final int size) {
+    // 先判断传入长度，决定要不要进行缓存优化
+    if (hashes.length == (BASE_SIZE*2)) {
+        synchronized (SimpleArrayMap.class) {
+            // 达到缓存次数上限就不再缓存
+            if (mTwiceBaseCacheSize &lt; CACHE_SIZE) {
+                // 把传入的数组第0存放当前缓存节点，把1用来存放hash数组
+                array[0] = mTwiceBaseCache;
+                array[1] = hashes;
+                // 把其他下标的数据清空
+                for (int i=(size&lt;&lt;1)-1; i&gt;=2; i--) {
+                    array[i] = null;
+                }
+                // 再把缓存节点指向传入的array
+                // 也就是说这里面是把传入的数组当成了新的缓存节点，然后把旧的缓存节点存放在了第0个元素
+                // hash数组放在第1个元素
+                mTwiceBaseCache = array;
+                mTwiceBaseCacheSize++;
+                if (DEBUG) System.out.println(TAG + &quot; Storing 2x cache &quot; + array
+                        + &quot; now have &quot; + mTwiceBaseCacheSize + &quot; entries&quot;);
+            }
+        }
+    } else if (hashes.length == BASE_SIZE) {
+        // 逻辑同上
+        synchronized (SimpleArrayMap.class) {
+            if (mBaseCacheSize &lt; CACHE_SIZE) {
+                array[0] = mBaseCache;
+                array[1] = hashes;
+                for (int i=(size&lt;&lt;1)-1; i&gt;=2; i--) {
+                    array[i] = null;
+                }
+                mBaseCache = array;
+                mBaseCacheSize++;
+                if (DEBUG) System.out.println(TAG + &quot; Storing 1x cache &quot; + array
+                        + &quot; now have &quot; + mBaseCacheSize + &quot; entries&quot;);
+            }
+        }
+    }
+}
+</code></pre>
+<h5 id="这里可能有的人会比较困惑这两个方法的逻辑和作用实际上扩容以及缓存的逻辑分成以下几步">这里可能有的人会比较困惑这两个方法的逻辑和作用，实际上扩容以及缓存的逻辑分成以下几步</h5>
+<ol>
+<li>put的过程中判断数组长度是否足够，如果需要扩容，会计算出扩容后的长度，然后先保存现有的<code>mArray</code>和<code>mHashs</code></li>
+<li>扩容的时候如果长度是符合缓存优化长度的，就会尝试去找缓存节点，如果有缓存数组<code>（用array代替）</code>可以用，那就用临时变量把先取出0和1两个下标的元素保存起来，然后<code>array</code>的0和1设成null，这样就可以拿到一个符合长度的数组用来存放<code>mArray</code>的数据，然后下标1的数组给<code>mHashs</code>用，也就是是说原有的缓存节点数组中<code>0</code>会变成新的缓存节点，<code>1</code>会给<code>mHash</code>复用，整个数组<code>array</code>给<code>mArray</code>复用</li>
+<li>当空余位置比较多的时候，会尝试缩短数组长度节省空间，同样先是判断当前有多少个数组，符合优化长度的才会试着去缓存，并且缓存次数不能超过<code>10</code>次，然后把当前数组的<code>0</code>和<code>1</code>两个元素分别指向缓存节点以及当前的<code>hash</code>值数组，然后把其他元素清空，把缓存节点指向当前元素，也就是说每一次缓存会把缓存节点指向自身，并且自身<code>array</code>的<code>0</code>保存原有的缓存节点，1保存当前的<code>hash数组</code></li>
+</ol>
+<figure data-type="image" tabindex="1"><img src="https://user-gold-cdn.xitu.io/2020/4/9/1715ce5e3f9d52fd?w=847&amp;h=787&amp;f=png&amp;s=302914" alt="" loading="lazy"></figure>
+<h5 id="借用网上的一张图缓存数组会保存上一个缓存数组节点以及当前hash数组然后复用的时候就拿当前数组来用这样通过下标1可以得到一个hash数组然后清空之后就得到一个可以给marray复用的数组然后把缓存节点指向下标0更新缓存节点这样就完成了缓存复用的流程">借用网上的一张图，缓存数组会保存上一个缓存数组节点以及当前hash数组，然后复用的时候就拿当前数组来用，这样通过下标<code>1</code>可以得到一个hash数组，然后清空之后就得到一个可以给<code>mArray</code>复用的数组，然后把缓存节点指向下标<code>0</code>更新缓存节点，这样就完成了缓存复用的流程。</h5>
+<h5 id="而缓存的时候也是同样的方式把mhash数组保存在了marray数组的第1个元素中把原有的缓存节点保存在下标0中然后把缓存节点指向当前array完成缓存数组的更新以及叠加">而缓存的时候也是同样的方式，把<code>mHash</code>数组保存在了<code>mArray</code>数组的第<code>1</code>个元素中，把原有的缓存节点保存在下标<code>0</code>中，然后把缓存节点指向当前array，完成缓存数组的更新以及叠加。</h5>
+<blockquote>
+<p>一般情况下都是先扩容再检查缓存节点，所以相当于是给把数据换到一个扩容<code>size</code>的新数组，然后把原本的数组加到缓存链中去。还有就是<code>clear</code> <code>remove</code>这种操作</p>
+</blockquote>
+<hr>
+<h3 id="3-remove操作">3. remove操作</h3>
+<pre><code class="language-java">@Override
+public V remove(Object key) {
+    // 找到对应key的下标之后再调用removeAt
+    final int index = indexOfKey(key);
+    if (index &gt;= 0) {
+        return removeAt(index);
+    }
+    return null;
+}
+
+// 也是用到了indexOf和indexOfNull两个方法，具体逻辑在上面有提到
+public int indexOfKey(Object key) {
+        return key == null ? indexOfNull()
+                : indexOf(key, mIdentityHashCode ? System.identityHashCode(key) : key.hashCode());
+    }
+
+
+public V removeAt(int index) {
+    // 先检查数据合法性
+    if (index &gt;= mSize &amp;&amp; UtilConfig.sThrowExceptionForUpperArrayOutOfBounds) {
+        // The array might be slightly bigger than mSize, in which case, indexing won't fail.
+        // Check if exception should be thrown outside of the critical path.
+        throw new ArrayIndexOutOfBoundsException(index);
+    }
+    
+    final Object old = mArray[(index &lt;&lt; 1) + 1];
+    final int osize = mSize;
+    final int nsize;
+    
+    // 如果原有长度只有1/0，那直接清空数组和数据就行了，并且会检查一下当前数组是否可以添加到缓存中去
+    if (osize &lt;= 1) {
+        // Now empty.
+        if (DEBUG) Log.d(TAG, &quot;remove: shrink from &quot; + mHashes.length + &quot; to 0&quot;);
+        final int[] ohashes = mHashes;
+        final Object[] oarray = mArray;
+        mHashes = EmptyArray.INT;
+        mArray = EmptyArray.OBJECT;
+        freeArrays(ohashes, oarray, osize);
+        nsize = 0;
+    } else {
+        nsize = osize - 1;
+        // 判断一下map中数据长度和数组的长度，如果数据个数不到数组长度的1/3，那么重新分配数组
+        if (mHashes.length &gt; (BASE_SIZE*2) &amp;&amp; mSize &lt; mHashes.length/3) {
+            // Shrunk enough to reduce size of arrays.  We don't allow it to
+            // shrink smaller than (BASE_SIZE*2) to avoid flapping between
+            // that and BASE_SIZE.
+            // 重新计算数组长度节省空间
+            final int n = osize &gt; (BASE_SIZE*2) ? (osize + (osize&gt;&gt;1)) : (BASE_SIZE*2);
+
+            if (DEBUG) Log.d(TAG, &quot;remove: shrink from &quot; + mHashes.length + &quot; to &quot; + n);
+
+            // 保存旧数据
+            final int[] ohashes = mHashes;
+            final Object[] oarray = mArray;
+            // 重新分配数组
+            allocArrays(n);
+            
+            // 检查数据避免多线程操作的时候出现问题
+            if (CONCURRENT_MODIFICATION_EXCEPTIONS &amp;&amp; osize != mSize) {
+                throw new ConcurrentModificationException();
+            }
+            
+            // 这里remove数据的方式是复制index前以及后的数据，跳过index
+            if (index &gt; 0) {
+                if (DEBUG) Log.d(TAG, &quot;remove: copy from 0-&quot; + index + &quot; to 0&quot;);
+                System.arraycopy(ohashes, 0, mHashes, 0, index);
+                System.arraycopy(oarray, 0, mArray, 0, index &lt;&lt; 1);
+            }
+            if (index &lt; nsize) {
+                if (DEBUG) Log.d(TAG, &quot;remove: copy from &quot; + (index+1) + &quot;-&quot; + nsize
+                        + &quot; to &quot; + index);
+                System.arraycopy(ohashes, index + 1, mHashes, index, nsize - index);
+                System.arraycopy(oarray, (index + 1) &lt;&lt; 1, mArray, index &lt;&lt; 1,
+                        (nsize - index) &lt;&lt; 1);
+            }
+        } else {
+            // 这里逻辑是不涉及重新分配数组的，并且检查一下下标合法性
+            if (index &lt; nsize) {
+                if (DEBUG) Log.d(TAG, &quot;remove: move &quot; + (index+1) + &quot;-&quot; + nsize
+                        + &quot; to &quot; + index);
+                // 直接把index后的数据都复制往前移一位
+                System.arraycopy(mHashes, index + 1, mHashes, index, nsize - index);
+                System.arraycopy(mArray, (index + 1) &lt;&lt; 1, mArray, index &lt;&lt; 1,
+                        (nsize - index) &lt;&lt; 1);
+            }
+            // 因为上面的操作把数据都复制了一份，这样会多出最后一个元素，所以要把最后一个设成null
+            // 这样就完成了对index的remove
+            mArray[nsize &lt;&lt; 1] = null;
+            mArray[(nsize &lt;&lt; 1) + 1] = null;
+        }
+    }
+    if (CONCURRENT_MODIFICATION_EXCEPTIONS &amp;&amp; osize != mSize) {
+        throw new ConcurrentModificationException();
+    }
+    // 更新数据长度
+    mSize = nsize;
+    return (V)old;
+}
+</code></pre>
+<h3 id="4-append-putall">4. <code>append</code> <code>putAll</code></h3>
+<pre><code class="language-java">
+public void append(K key, V value) {
+    // append默认是添加到末尾
+    int index = mSize;
+    // 根据key算出hash值
+    final int hash = key == null ? 0
+            : (mIdentityHashCode ? System.identityHashCode(key) : key.hashCode());
+    
+        
+    // 检查index的合法性，做一些判断
+    if (index &gt;= mHashes.length) {
+        throw new IllegalStateException(&quot;Array is full&quot;);
+    }
+    
+    // 找到位置存放，但是hash值没有按升序排列的时候，会打印异常然后用put去存放
+    if (index &gt; 0 &amp;&amp; mHashes[index-1] &gt; hash) {
+        RuntimeException e = new RuntimeException(&quot;here&quot;);
+        e.fillInStackTrace();
+        Log.w(TAG, &quot;New hash &quot; + hash
+                + &quot; is before end of array hash &quot; + mHashes[index-1]
+                + &quot; at index &quot; + index + &quot; key &quot; + key, e);
+        put(key, value);
+        return;
+    }
+    
+    // 如果index合法并且hash值也合法，直接把数据加到末尾
+    mSize = index+1;
+    mHashes[index] = hash;
+    index &lt;&lt;= 1;
+    mArray[index] = key;
+    mArray[index+1] = value;
+}
+    
+/**
+ * Perform a {@link #put(Object, Object)} of all key/value pairs in &lt;var&gt;array&lt;/var&gt;
+ * @param array The array whose contents are to be retrieved.
+ */
+public void putAll(ArrayMap&lt;? extends K, ? extends V&gt; array) {
+    final int N = array.mSize;
+    // 先确定容量是否足够
+    ensureCapacity(mSize + N);
+
+    // map是空的时候直接把数据都复制过去
+    if (mSize == 0) {
+        if (N &gt; 0) {
+            System.arraycopy(array.mHashes, 0, mHashes, 0, N);
+            System.arraycopy(array.mArray, 0, mArray, 0, N&lt;&lt;1);
+            mSize = N;
+        }
+    } else {
+        // 不为空的时候for循环使用put
+        for (int i=0; i&lt;N; i++) {
+            put(array.keyAt(i), array.valueAt(i));
+        }
+    }
+}
+
+public void ensureCapacity(int minimumCapacity) {
+    final int osize = mSize;
+    if (mHashes.length &lt; minimumCapacity) {
+        // 需要扩容的时候照样是保存旧数据然后去扩容，复制数据，接着缓存数组
+        final int[] ohashes = mHashes;
+        final Object[] oarray = mArray;
+        allocArrays(minimumCapacity);
+        if (mSize &gt; 0) {
+            System.arraycopy(ohashes, 0, mHashes, 0, osize);
+            System.arraycopy(oarray, 0, mArray, 0, osize&lt;&lt;1);
+        }
+        freeArrays(ohashes, oarray, osize);
+    }
+    if (CONCURRENT_MODIFICATION_EXCEPTIONS &amp;&amp; mSize != osize) {
+        throw new ConcurrentModificationException();
+    }
+}
+</code></pre>
+<h3 id="5-setvalueat">5. setValueAt</h3>
+<pre><code class="language-java">public V setValueAt(int index, V value) {
+    // 先检查index是否合法
+    if (index &gt;= mSize &amp;&amp; UtilConfig.sThrowExceptionForUpperArrayOutOfBounds) {
+        // The array might be slightly bigger than mSize, in which case, indexing won't fail.
+        // Check if exception should be thrown outside of the critical path.
+        throw new ArrayIndexOutOfBoundsException(index);
+    }
+    // 把对应index的value更新，然后返回旧的value，这里hash值不需要改变
+    index = (index &lt;&lt; 1) + 1;
+    V old = (V)mArray[index];
+    mArray[index] = value;
+    return old;
+}
+</code></pre>
+<hr>
+<h3 id="总结">总结</h3>
+<ul>
+<li><code>ArrayMap</code>中有两个数组来存放数据，<code>mArray</code>存放键值对数据，<code>mHashs</code>存放键的hash值。</li>
+<li>查找下标的时候用二分法去找到插入的地方，<code>mHash</code>中数据是按升序存放，所以<code>mArray</code>的键值对数据不是按存放顺序排。</li>
+<li><code>ArrayMap</code>中对应的会进行数组缓存优化，但是只针对容量为<code>4/8</code>的长度，所以如果初始化的时候用<code>4/8</code>会提高效率，但是也不一定就得用<code>4/8</code>，具体场景具体分析</li>
+<li><code>ArrayMap</code>用一个变量存放无用的数组来作为缓存，并且可以重复连接来形成一个缓存链，最大缓存次数为<code>10</code></li>
+<li>每次扩容的时候如果超出<code>8</code>的长度，会变成原长度的<code>1.5</code>倍</li>
+<li><code>ArrayMap</code>为非线程安全类，所以代码里做了很多标记判断</li>
+</ul>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/9UOs1hGim/" class="tag">
+                    源码
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/kotlin-xie-cheng-xue-xi-zhi-lu-yi/">
+                  <h3 class="post-title">
+                    Kotlin协程学习之路【一】
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

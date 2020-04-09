@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Rxjava2解析-订阅流程 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="总结一下Rxjava一个最基本的订阅流程是如何实现的，以及Rxjava的设计思路是什么样的
+
+订阅
+首先创建一个observer和observable
+new Observer&lt;Object&gt;() {
+            @..." />
+    <meta name="keywords" content="Rxjava,源码" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Rxjava2解析-订阅流程</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="总结一下rxjava一个最基本的订阅流程是如何实现的以及rxjava的设计思路是什么样的">总结一下Rxjava一个最基本的订阅流程是如何实现的，以及Rxjava的设计思路是什么样的</h4>
+<!-- more -->
+<h4 id="订阅">订阅</h4>
+<p>首先创建一个<code>observer</code>和<code>observable</code></p>
+<pre><code>new Observer&lt;Object&gt;() {
+            @Override
+            public void onSubscribe(Disposable d) {
+
+            }
+
+            @Override
+            public void onNext(Object o) {
+
+            }
+
+            @Override
+            public void onError(Throwable e) {
+
+            }
+
+            @Override
+            public void onComplete() {
+
+            }
+        };
+</code></pre>
+<pre><code> Observable.create(new ObservableOnSubscribe&lt;Object&gt;() {
+            @Override
+            public void subscribe(ObservableEmitter&lt;Object&gt; emitter) throws Exception {
+
+            }
+        });
+</code></pre>
+<ul>
+<li>
+<h4 id="先看observable的创建过程create只是把传进去observableonsubscribe对象包装了一层返回这里可以忽略">先看<code>Observable</code>的创建过程，<code>create()</code>只是把传进去<code>ObservableOnSubscribe</code>对象包装了一层返回,这里可以忽略</h4>
+</li>
+<li>
+<h4 id="然后是observableonsubscribe类的内部">然后是<code>ObservableOnSubscribe</code>类的内部</h4>
+</li>
+</ul>
+<pre><code>    final ObservableOnSubscribe&lt;T&gt; source;
+
+    public ObservableCreate(ObservableOnSubscribe&lt;T&gt; source) {
+        // 1
+        this.source = source;
+    }
+
+    @Override
+    protected void subscribeActual(Observer&lt;? super T&gt; observer) {
+        // 2
+        CreateEmitter&lt;T&gt; parent = new CreateEmitter&lt;T&gt;(observer);
+        observer.onSubscribe(parent);
+
+        try {
+        // 3 
+            source.subscribe(parent);
+        } catch (Throwable ex) {
+            Exceptions.throwIfFatal(ex);
+            parent.onError(ex);
+        }
+    }
+</code></pre>
+<h5 id="1-在这里把传进来的observableonsubscribe对象保存起来">1. 在这里把传进来的ObservableOnSubscribe对象保存起来</h5>
+<h5 id="2-这里new了一个emitter也就是我们用来onnextonerror的类然后把emitter传给observer中由于createemitter实现了disposable接口所以可以看到observer里有一个onsubscribedisposable-d我们可以用来控制流的结束等操作实际上这个disposable就是源obserable创建的">2. 这里new了一个Emitter，也就是我们用来onNext,onError的类,然后把Emitter传给observer中，由于CreateEmitter实现了Disposable接口，所以可以看到Observer里有一个<code>onSubscribe(Disposable d)</code>，我们可以用来控制流的结束等操作，实际上这个<code>Disposable</code>就是源Obserable创建的，</h5>
+<h5 id="3-这里把emitter传给source也就是传给我们new的observableonsubscribe的subscribe">3. 这里把<code>Emitter</code>传给source，也就是传给我们new的<code>ObservableOnSubscribe</code>的<code>subscribe()</code></h5>
+<h4 id="到这里可以看出最简单的一个订阅流程是什么样的">到这里可以看出最简单的一个订阅流程是什么样的</h4>
+<h3 id="变化操作">变化操作</h3>
+<ul>
+<li>以map操作来看，map变化返回了一个<code>ObservableMap</code> ,也是一个<code>Observable</code></li>
+</ul>
+<figure data-type="image" tabindex="1"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f66de59a2797?w=852&amp;h=176&amp;f=png&amp;s=42741" alt="image.png" loading="lazy"></figure>
+<p><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f66de5718655?w=1240&amp;h=830&amp;f=png&amp;s=211807" alt="image.png" loading="lazy"><br>
+<img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f66de589576c?w=1240&amp;h=559&amp;f=png&amp;s=207727" alt="image.png" loading="lazy"></p>
+<ul>
+<li>这里其实可以看出，每一个<code>Observable</code> 都会有一个<code>subscribeActual()</code>方法，这个方法在<code>Observable</code>调用<code>subscrible()</code>之后会被调用，也就是说一个<code>Observable</code>在调用<code>subscrible()</code>之后，实际上的操作逻辑都是在<code>subscribeActual()</code>里面</li>
+<li>在<code>ObservableMap</code>的<code>subscribeActual()</code>里，调用了<code>source.subscribe(new MapObserver&lt;T, U&gt;(t, function));</code> 这句代码，<code>source</code>是上层的observable，参数为包装过后的<code>observer</code>即<code>MapObserver</code>,由图三可以看出，<code>MapObserver</code>内部的<code>onNext</code>是往下游传递一个经过<code>apply()</code>变化过后的数据，也就达到了我们用<code>map</code>变化数据的功能了。</li>
+</ul>
+<h3 id="结论">结论</h3>
+<ul>
+<li><code>Observable</code>只有在调用了<code>subscribed()</code>订阅了<code>observer</code>之后才会开始整个流程，调用了<code>subscribed()</code>之后会调用到<code>subscribeActual(Observer&lt;? super U&gt; t)</code> 实际上就是把<code>observer</code>从最下游，往上面传递。<br>
+而在<code>subscribeActual(Observer&lt;? super U&gt; t)</code>这个方法内，会调用<code>source.subscribe(Observer);</code>也就是说最下游开始订阅之后，中间的每一个<code>Observable</code>都会调用到<code>subscribeActual</code>方法，然后调用<code>source</code>也就是上一个Observable的<code>subscribe</code>方法，这样就做到了把observer往上传。然后<code>downstream</code>保存下游的Observable，这样子做是为了上游传递数据的时候，自己先经过变化，然后再把数据给传递到下游<br>
+中间具体把<code>observer</code>包装的逻辑都在各自<code>Observable</code>的<code>subscribeActual</code>中去做，比如<code>map</code>变化，就是把observer包装成<code>MapObserver</code>然后传递到上游.然后<code>源Observable</code>发射数据的时候就调用各自的方法去变换数据，再传递下去<br>
+也就是说中间各种变化，实际都是把observer给包装起来，传递到<code>源Observable</code>中去，然后<code>源Observble</code>发射数据了，就一层层的包装变换然后传递下去</li>
+</ul>
+<figure data-type="image" tabindex="2"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f66de5c3e6a1?w=1240&amp;h=830&amp;f=png&amp;s=211811" alt="image.png" loading="lazy"></figure>
+<ul>
+<li><code>onSubscribe()</code>是在源Observable创建好emitter发射器之后，会调用observer的<code>onSubscribe()</code>方法，中间如果有变换的话，由于变化产生的Observable会把下游的observer包装传给上游，同时自己也保存了下游包装过后的的observer,所以会一层层的调用下游包装过的observer的onSubscribe方法，直到最后的源observer<br>
+<img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f66de5bc4c53?w=784&amp;h=807&amp;f=png&amp;s=49809" alt="image.png" loading="lazy"></li>
+</ul>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/3dftQpExv/" class="tag">
+                    Rxjava
+                  </a>
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/9UOs1hGim/" class="tag">
+                    源码
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/rxjava2-xian-cheng-qie-huan-jie-xi/">
+                  <h3 class="post-title">
+                    Rxjava2-线程切换解析
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

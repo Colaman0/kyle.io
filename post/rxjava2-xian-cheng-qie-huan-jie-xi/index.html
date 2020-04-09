@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Rxjava2-线程切换解析 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="这篇文章来总结一下Rxjava中切换线程的内在是怎么实现的
+
+ObservableOn()
+直接查看实现，会发现onSubscribe()中做了一些判断，比如82 104等几行都是做了一些同步 异步 等的判断，然后初始化Disposable..." />
+    <meta name="keywords" content="Rxjava,源码" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Rxjava2-线程切换解析</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="这篇文章来总结一下rxjava中切换线程的内在是怎么实现的">这篇文章来总结一下Rxjava中切换线程的内在是怎么实现的</h4>
+<!-- more -->
+<h3 id="observableon">ObservableOn()</h3>
+<h5 id="直接查看实现会发现onsubscribe中做了一些判断比如82-104等几行都是做了一些同步-异步-等的判断然后初始化disposableonsubscribe是上游observable完成了整条订阅链之后调用的所以这些操作是在开始订阅之后才初始化操作然后106行可以看出把一个包装处理过的disposable传递给下游">直接查看实现，会发现<code>onSubscribe()</code>中做了一些判断，比如<code>82</code> <code>104</code>等几行都是做了一些<code>同步</code> <code>异步</code> 等的判断，然后初始化<code>Disposable</code>，<code>onSubscribe()</code>是上游<code>Observable</code>完成了整条订阅链之后调用的，所以这些操作是在开始订阅之后才初始化操作，然后<code>106</code>行可以看出把一个包装处理过的<code>Disposable</code>传递给下游</h5>
+<figure data-type="image" tabindex="1"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f6660af93527?w=1127&amp;h=823&amp;f=png&amp;s=131893" alt="image.png" loading="lazy"></figure>
+<hr>
+<h5 id="和之前的一样subscribeactual方法里会将observer进行包装然后传递给source也就是上游进行订阅">和之前的一样，<code>subscribeActual</code>方法里会将<code>observer</code>进行包装，然后传递给source也就是上游进行订阅</h5>
+<pre><code>* `40`行进行了判断所传进来的`scheduler`是否跟原本的线程一致，如果是一样的就直接传递不用进行处理
+*  `43`行创建了一个对应`scheduler`的`worker`，`worker`在后续负责把数据在对应的线程进行发射操作
+</code></pre>
+<figure data-type="image" tabindex="2"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f6660b1e4f76?w=1034&amp;h=314&amp;f=png&amp;s=51418" alt="image.png" loading="lazy"></figure>
+<h5 id="发射数据onnext处理">发射数据<code>onNext</code>处理</h5>
+<pre><code>        @Override
+        public void onNext(T t) {
+          ...
+          // 前面的都先忽略掉，会发现最后会调用这个方法
+            schedule();
+        }
+        
+      void schedule() {
+         if (getAndIncrement() == 0) {
+         // 在这个可以看到，上面根据schedule的worker执行了schedule(),并且把自身传进去，this其实实现了runnable，所以可以理解为传了一个runnable进去
+            worker.schedule(this);
+        }
+    }
+</code></pre>
+<h5 id="接着上面的以androidschedulersmainthread这个scheduler为例这里实际上是将主线程的looper传进去了">接着上面的以<code>AndroidSchedulers.mainThread()</code>这个scheduler为例,这里实际上是将主线程的<code>looper</code>传进去了</h5>
+<figure data-type="image" tabindex="3"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f6660b4b4fa8?w=953&amp;h=426&amp;f=png&amp;s=80752" alt="image.png" loading="lazy"></figure>
+<h4 id="查看一下这个scheduler的worker会发现worker的基类schedule方法是相同的互相调用的所以可以直接看多个参数的schedule可以看到73行创建了一个scheduledrunnable对象并且把主线程的handler以及外面的observer传递过去接着82行用主线程的handler发送消息119行scheduledrunnable里的run被调用接着observer也就是runnable也调用run方法">查看一下这个scheduler的worker，会发现worker的基类schedule()方法是相同的互相调用的，所以可以直接看多个参数的schedule(),可以看到<code>73</code>行创建了一个<code>ScheduledRunnable</code>对象，并且把<code>主线程的handler</code>以及外面的<code>Observer</code>传递过去，接着<code>82</code>行用主线程的handler发送消息，<code>119</code>行<code>ScheduledRunnable</code>里的<code>run</code>被调用，接着<code>Observer也就是runnable</code>也调用<code>run</code>方法</h4>
+<figure data-type="image" tabindex="4"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f6660bef47f9?w=1084&amp;h=827&amp;f=png&amp;s=139399" alt="image.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="5"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f66610d466fc?w=929&amp;h=759&amp;f=png&amp;s=90246" alt="image.png" loading="lazy"></figure>
+<h5 id="到这里可以看出实际上当切换线程的时候observer也实现了runnable的onnext往scheduler里发送自身让scheduler来决定自身应该在什么线程执行run方法接下来看回observer的run方法就是判断了一下要执行哪个方法">到这里可以看出，实际上当切换线程的时候，observer(<code>也实现了Runnable</code>)的onNext往scheduler里发送自身，让scheduler来决定自身应该在什么线程执行run方法,接下来看回observer的run方法，就是判断了一下要执行哪个方法</h5>
+<figure data-type="image" tabindex="6"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f666125d472b?w=500&amp;h=215&amp;f=png&amp;s=23340" alt="image.png" loading="lazy"></figure>
+<h5 id="可以看到最后是调用了onnext方法到这里就完成了指定线程发射数据的功能">可以看到最后是调用了onNext方法，到这里就完成了指定线程发射数据的功能</h5>
+<pre><code>        void drainNormal() {
+            int missed = 1;
+
+            final SimpleQueue&lt;T&gt; q = queue;
+            final Observer&lt;? super T&gt; a = downstream;
+
+            for (;;) {
+                if (checkTerminated(done, q.isEmpty(), a)) {
+                    return;
+                }
+
+                for (;;) {
+                    boolean d = done;
+                    T v;
+
+                    try {
+                        v = q.poll();
+                    } catch (Throwable ex) {
+                        Exceptions.throwIfFatal(ex);
+                        disposed = true;
+                        upstream.dispose();
+                        q.clear();
+                        a.onError(ex);
+                        worker.dispose();
+                        return;
+                    }
+                    boolean empty = v == null;
+
+                    if (checkTerminated(d, empty, a)) {
+                        return;
+                    }
+
+                    if (empty) {
+                        break;
+                    }
+
+                    a.onNext(v);
+                }
+
+                missed = addAndGet(-missed);
+                if (missed == 0) {
+                    break;
+                }
+            }
+        }
+
+</code></pre>
+<h5 id="值得注意的是可以看到的是v也就是我们要发射的数据是通过poll方法获取的查看代码可以发现">值得注意的是可以看到的是<code>v</code>也就是我们要发射的数据，是通过<code>poll</code>方法获取的，查看代码可以发现</h5>
+<p><code>queue</code>实际上就是一个<code>Disposable</code>也就是说是上游<code>Observable</code>,通过上游的poll方法去获取要onNext的数据</p>
+<figure data-type="image" tabindex="7"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f6664a5e3555?w=1095&amp;h=802&amp;f=png&amp;s=131096" alt="image.png" loading="lazy"></figure>
+<h5 id="查看observable其中一个实现observablemap的poll方法可以看到这里实际上也是调用上游的poll方法并且对数据的格式也就是不允许为null做了一层判断">查看<code>Observable</code>其中一个实现<code>ObservableMap</code>的poll方法，可以看到这里实际上也是调用上游的poll方法，并且对数据的格式也就是不允许为null做了一层判断</h5>
+<pre><code>        public U poll() throws Exception {
+            T t = qd.poll();
+            return t != null ? ObjectHelper.&lt;U&gt;requireNonNull(mapper.apply(t), &quot;The mapper function returned a null value.&quot;) : null;
+        }
+</code></pre>
+<h6 id="poll方法操作的对象实际上是下图104行的时候new出来的具体查看其实就是缓存数据类似一个容量池的作用">poll方法操作的对象实际上是下图<code>104</code>行的时候new出来的，具体查看其实就是缓存数据，类似一个容量池的作用</h6>
+<figure data-type="image" tabindex="8"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f6664aab0da8?w=1126&amp;h=818&amp;f=jpeg&amp;s=57234" alt="image.png" loading="lazy"></figure>
+<h5 id="用一段伪代码来展示切换线程之后的observer其实相当于onnext等方法都被放在指定的线程里去发射数据">用一段伪代码来展示切换线程之后的observer，其实相当于onNext等方法都被放在指定的线程里去发射数据</h5>
+<pre><code>public class Observer {
+    Observer oldObserver;
+
+    public Observer(Observer observer) {
+        oldObserver = observer;
+    }
+
+    public void onNext(T t) {
+        // 一些其他操作
+        new Thread(&quot;Android mainThread&quot;) {
+            @Override
+            public void run() {
+                oldObserver.onNext(t);
+            }
+        } .start();
+    }
+
+    public void onError(Throwable e) {
+        // 一些其他操作
+        new Thread(&quot;Android mainThread&quot;) {
+            @Override
+            public void run() {
+                oldObserver.onError(e);
+            }
+        } .start();
+    }
+
+    public void onComplete() {
+        // 一些其他操作
+        new Thread(&quot;Android mainThread&quot;) {
+            @Override
+            public void run() {
+                oldObserver.onComplete();
+            }
+        } .start();
+    }
+}
+</code></pre>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/3dftQpExv/" class="tag">
+                    Rxjava
+                  </a>
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/9UOs1hGim/" class="tag">
+                    源码
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/okhttp-de-interceptor-lan-jie-qi-yuan-ma-jie-xi/">
+                  <h3 class="post-title">
+                    Okhttp的Interceptor拦截器源码解析
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Handler机制解析 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="分析一下Handler源码以及一些核心部分的代码
+
+Handler 原理：
+首先sendMessage（）以及 sendMessageDelayed()最后调用的都是 sendMessageDelayed()，接着开始总体流程
+
+遍历链表：..." />
+    <meta name="keywords" content="源码" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Handler机制解析</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="分析一下handler源码以及一些核心部分的代码">分析一下Handler源码以及一些核心部分的代码</h4>
+<!-- more -->
+<h3 id="handler-原理">Handler 原理：</h3>
+<h5 id="首先sendmessage以及-sendmessagedelayed最后调用的都是-sendmessagedelayed接着开始总体流程">首先sendMessage（）以及 sendMessageDelayed()最后调用的都是 sendMessageDelayed()，接着开始总体流程</h5>
+<blockquote>
+<h5 id="遍历链表-首先判断链表里有没有message如果里面是空的或者传入的msg执行的时间比头message要早则把msg放到链表的头部-比如send两次message先执行的有延时后执行的没延时这个时候就要把后执行的message放到最前面-接着遍历链表根据执行的事件去调整message的位置">遍历链表： 首先判断链表里有没有message，如果里面是空的或者传入的msg执行的时间比头message要早，则把msg放到链表的头部，（ 比如send两次message，先执行的有延时，后执行的没延时，这个时候就要把后执行的message放到最前面） 接着遍历链表，根据执行的事件去调整message的位置：</h5>
+</blockquote>
+<h4 id="第一次添加数据到队列中或者当前-msg-的时间小于-mmessages-的时间">第一次添加数据到队列中，或者当前 msg 的时间小于 mMessages 的时间</h4>
+<pre><code>// p为队列中头部msg
+if (p == null || when == 0 || when &lt; p.when) {
+
+        // New head, wake up the event queue if blocked.
+
+        // 把当前 msg 添加到链表的第一个
+
+        msg.next = p;
+
+        mMessages = msg;
+
+        needWake = mBlocked;
+
+} else {
+
+        // 不是第一次添加数据，并且 msg 的时间 大于 mMessages(头指针) 的时间
+
+        // Inserted within the middle of the queue.  Usually we don't have to wake
+
+        // up the event queue unless there is a barrier at the head of the queue
+
+        // and the message is the earliest asynchronous message in the queue.
+
+        needWake = mBlocked &amp;&amp; p.target == null &amp;&amp; msg.isAsynchronous();
+
+        Message prev;
+
+        for (;;) {
+
+        // 不断的遍历找到合适的位置
+
+        prev = p;
+
+        p = p.next;
+
+        if (p == null || when &lt; p.when) {     // 根据执行时间判断应该插到哪个位置    
+
+        break;
+
+        }
+
+        if (needWake &amp;&amp; p.isAsynchronous()) {
+
+        needWake = false;
+
+        }
+
+        }
+
+        // 把当前 msg 插入到列表中
+
+        msg.next = p; // invariant: p == prev.next
+
+        prev.next = msg;
+
+}
+
+</code></pre>
+<h3 id="looper">Looper</h3>
+<blockquote>
+<h5 id="looper是通过不断循环去获取message的要使用handler子线程中必须调用looperprepare以及-looperloop-主线程中默认有一个looperactivitythread中系统已经初始化了一个looper下面是具体逻辑代码">Looper是通过不断循环去获取message的，要使用handler，子线程中必须调用looper.prepare()以及 looper.loop()。主线程中默认有一个looper，ActivityThread中系统已经初始化了一个looper，下面是具体逻辑代码</h5>
+</blockquote>
+<pre><code>public static void loop() {
+
+    final Looper me = myLooper();
+
+    final MessageQueue queue = me.mQueue;
+
+    // 一个死循环
+
+    for (;;) {
+
+        // 不断的从消息队列里面取消息
+
+        Message msg = queue.next(); // might block
+
+        if (msg == null) {
+
+            // No message indicates that the message queue is quitting.
+
+            return;
+
+        }
+
+        try {
+
+            // 通过 target 去 dispatchMessage 而 target 就是绑定的 Handler
+            // 到这里也就完成了消息的传递流程
+
+            msg.target.dispatchMessage(msg);
+
+        } finally {
+
+            // 消息回收循环利用
+
+            msg.recycleUnchecked();
+
+        }
+
+    }
+
+}
+</code></pre>
+<h4 id="在这里loop的死循环涉及到pipe知识就不深入探讨如下图">在这里loop的死循环涉及到pipe知识就不深入探讨，如下图</h4>
+<figure data-type="image" tabindex="1"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f67c46c3a208?w=1024&amp;h=592&amp;f=jpeg&amp;s=41745" alt="image.gif" loading="lazy"></figure>
+<figure data-type="image" tabindex="2"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f67c46d2b8e4?w=1061&amp;h=211&amp;f=png&amp;s=83002" alt="image.png" loading="lazy"></figure>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/9UOs1hGim/" class="tag">
+                    源码
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/recyclerview-yuan-ma-jie-xi/">
+                  <h3 class="post-title">
+                    RecyclerView源码解析
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

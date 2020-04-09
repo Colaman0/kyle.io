@@ -1,107 +1,226 @@
+<!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Kyle</title>
-<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586415586450">
-<link href="https://cdn.jsdelivr.net/npm/remixicon@2.3.0/fonts/remixicon.css" rel="stylesheet">
+    <meta charset="utf-8" >
+
+<title>文章归档 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
 <link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
-<link rel="alternate" type="application/atom+xml" title="Kyle - Atom Feed" href="https://colaman0.github.io/kylelin//atom.xml">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Droid+Serif:400,700">
 
 
 
-    <meta name="description" content="be a better me" />
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="be a better me">
   </head>
   <body>
-    <div class="main">
-      <div class="main-content">
-        <div class="site-header">
-  <a href="https://colaman0.github.io/kylelin/">
-  <img class="avatar" src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586415586450" alt="">
-  </a>
-  <h1 class="site-title">
-    Kyle
-  </h1>
-  <p class="site-description">
-    be a better me
-  </p>
-  <div class="menu-container">
-    
-      
-        <a href="/" class="menu">
-          首页
-        </a>
-      
-    
-      
-        <a href="/archives" class="menu">
-          归档
-        </a>
-      
-    
-      
-        <a href="/tags" class="menu">
-          标签
-        </a>
-      
-    
-      
-        <a href="/post/about" class="menu">
-          关于
-        </a>
-      
-    
-  </div>
-  <div class="social-container">
-    
-      
-    
-      
-    
-      
-    
-      
-    
-      
-    
-  </div>
-</div>
+    <div id="app" class="main">
 
-    
-        
-
-<div class="archives-container">
-  
-    <h2 class="year">2018</h2>
-    
-      
-        <a href="https://colaman0.github.io/kylelin/post/hello-gridea/" class="post">
-          <h2 class="post-title">
-            Hello Gridea
-          </h2>
-          <div class="time">2018-12-12</div>
-        </a>
-      
-    
-  
-</div>
-
-    
-        <div class="pagination-container">
-  
-  
-</div>
-
-    
-        <div class="site-footer">
-  Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a>
-  <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">
-    <i class="ri-rss-line"></i> RSS
-  </a>
-</div>
-
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
       </div>
     </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          
+
+          <h2 class="archives-title">文章归档</h2>
+          <div class="archives-container">
+            
+              <h2 class="year" data-aos="fade-in" data-aos-delay="500">2020</h2>
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/arraymap-yuan-ma-jie-xi/">
+                      <h2 class="post-title">
+                        ArrayMap源码解析
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/kotlin-xie-cheng-xue-xi-zhi-lu-yi/">
+                      <h2 class="post-title">
+                        Kotlin协程学习之路【一】
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/nei-cun-you-hua-xiang-guan/">
+                      <h2 class="post-title">
+                        内存优化相关
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/handler-ji-zhi-jie-xi/">
+                      <h2 class="post-title">
+                        Handler机制解析
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/recyclerview-yuan-ma-jie-xi/">
+                      <h2 class="post-title">
+                        RecyclerView源码解析
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/rxjava2-jie-xi-ding-yue-liu-cheng/">
+                      <h2 class="post-title">
+                        Rxjava2解析-订阅流程
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/rxjava2-xian-cheng-qie-huan-jie-xi/">
+                      <h2 class="post-title">
+                        Rxjava2-线程切换解析
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/okhttp-de-interceptor-lan-jie-qi-yuan-ma-jie-xi/">
+                      <h2 class="post-title">
+                        Okhttp的Interceptor拦截器源码解析
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+                
+                  <article class="post">
+                    <a href="https://colaman0.github.io/kylelin/post/yi-ge-chao-gao-zi-ding-yi-du-you-jian-dan-shi-yong-de-ye-mian-zhuang-tai-guan-li-ku/">
+                      <h2 class="post-title">
+                        一个超高自定义度又简单使用的页面状态管理库
+                      </h2>
+                    </a>
+                  </article>
+                
+              
+            
+          </div>
+
+          <div class="pagination-container">
+  
+  
+</div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
   </body>
 </html>

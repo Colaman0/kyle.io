@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>内存优化相关 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="总结一些比较日常的内存优化策略
+
+
+
+用SparseArray / ArrayMap 代替HashMap
+
+
+SparseArray:
+
+如果key的类型已经确定为int类型，那么使用SparseArray，因为它避免了自动装箱的过程，如果..." />
+    <meta name="keywords" content="优化" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">内存优化相关</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="总结一些比较日常的内存优化策略">总结一些比较日常的内存优化策略</h4>
+<!-- more -->
+<ul>
+<li>
+<h4 id="用sparsearray-arraymap-代替hashmap">用SparseArray / ArrayMap 代替HashMap</h4>
+</li>
+</ul>
+<h5 id="sparsearray">SparseArray:</h5>
+<blockquote>
+<p>如果key的类型已经确定为int类型，那么使用SparseArray，因为它避免了自动装箱的过程，如果key为long类型，它还提供了一个<code>LongSparseArray</code>来确保key为long类型时的使用，如果key类型为其它的类型，则使用<code>ArrayMap</code></p>
+</blockquote>
+<h5 id="arraymap">ArrayMap:</h5>
+<blockquote>
+<p>android.util.ArrayMap存储结构是由int[] mHashes和Object[] mArray两个数据组成，mHashes保存key的hashCode，mArray以键值对形式保存key和value。 ArrayMap取数据时通过二分法查找index，获取相应value。 ArrayMap在remove和clear后，会重新收缩数据，节约空间，但会降低执行效率。ArrayMap是牺牲了时间换取空间。根据官方描述，由于查找方式采用的是二分法，并且当你删除或者添加数据时，会对空间重新调整，ArrayMap不太适合数据量比较大的场景。</p>
+</blockquote>
+<figure data-type="image" tabindex="1"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f682856d23d7?w=487&amp;h=406&amp;f=png&amp;s=88544" alt="image.png" loading="lazy"></figure>
+<ul>
+<li>
+<h4 id="enum-枚举">Enum (枚举)</h4>
+</li>
+</ul>
+<p>避免使用枚举，用静态变量代替，枚举占用的内容大的多</p>
+<ul>
+<li>
+<h4 id="减少-bitmap-对象的内存占用">减少 Bitmap 对象的内存占用</h4>
+</li>
+</ul>
+<blockquote>
+<p>Bitmap是一个极容易消耗内存的大胖子，减小创建出来的Bitmap的内存占用是很重要的，通常来说有下面2个措施：</p>
+</blockquote>
+<h5 id="1insamplesize缩放比例在把图片载入内存之前我们需要先计算出一个合适的缩放比例避免不必要的大图载入">1.inSampleSize：缩放比例，在把图片载入内存之前，我们需要先计算出一个合适的缩放比例，避免不必要的大图载入。</h5>
+<h5 id="2decode-format解码格式选择-argb_8888-rbg_565-argb_4444-alpha_8这几种格式存在很大差异和内存占用情况">2.decode format：解码格式，选择 ARGB_8888 / RBG_565/ ARGB_4444 / ALPHA_8,这几种格式存在很大差异和内存占用情况。</h5>
+<ul>
+<li>
+<h4 id="注意临时-bitmap-对象的及时回收">注意临时 Bitmap 对象的及时回收</h4>
+</li>
+</ul>
+<blockquote>
+<p>我们会对 Bitmap 增加缓存机制，但是在某些时候，部分 Bitmap 是需要及时回收的。例如临时创建的某个相对比较大的 Bitmap 对象，在经过变换得到新的 Bitmap 对象之后，应该尽快回收原始的 Bitmap，这样能够更快释放原始 Bitmap 所占用的空间。<br>
+需要特别留意的是 Bitmap 类里面提供的 <code>createBitmap()</code> 方法：<br>
+这个函数返回的 Bitmap 有可能和 source bitmap 是同一个，在回收的时候，需要特别检查 source bitmap 与 return bitmap 的引用是否相同，只有在不等的情况下，才能够执行 source bitmap 的 recycle() 方法</p>
+</blockquote>
+<ul>
+<li>
+<h4 id="尽量地采用-int-类型">尽量地采用 int 类型</h4>
+</li>
+</ul>
+<blockquote>
+<p>Android 系统中 float 类型的数据存取速度是 int 类型的一半，尽量优先采用 int 类型。而同样能作为整数的代名词，采用 int 替换 Integer 会让你的内存开销更小。</p>
+</blockquote>
+<ul>
+<li>适当使用intern</li>
+</ul>
+<blockquote>
+<p>JDK7以及以后String类提供了<code>intern()</code>方法，手动调用可以把对象放到常量池中，后续调用的时候如果在常量池中匹配到了就直接使用，避免重复创建对象，但是使用了<code>intern()</code> 之后会相当于花费多一点点时间，但是数据多的情况下，花费的那点时间和节省下来的空间来说还是不值一提的</p>
+</blockquote>
+<ul>
+<li>
+<h4 id="尽量使用原字符串的-substring">尽量使用原字符串的 subString</h4>
+</li>
+</ul>
+<blockquote>
+<p>当从已经存在的数据集中抽取出 String 的时候，尝试返回原数据的<code>subString</code> 对象，而不要创建一个重复的对象。这一点比较少见，因为每次调用<code>subString</code>方法都会创建一个新的String对象</p>
+</blockquote>
+<ul>
+<li>
+<h4 id="避免在频繁调用的方法比如-ondraw-里面执行对象的创建">避免在频繁调用的方法比如 onDraw() 里面执行对象的创建</h4>
+</li>
+</ul>
+<blockquote>
+<p>类似 onDraw() 等频繁调用的方法，一定需要注意避免在这里做创建对象的操作，因为他会迅速增加内存的使用，而且很容易引起频繁的 gc，甚至是内存抖动。</p>
+</blockquote>
+<ul>
+<li>
+<h4 id="循环里操作字符串的时候改用stringbufferstringbuilder来操作">循环里操作字符串的时候改用<code>StringBuffer</code>/<code>StringBuilder</code>来操作</h4>
+</li>
+</ul>
+<blockquote>
+<p>如果直接在循环里用 <code>+</code> 拼接字符串，会创建很多无用的对象，比如说以下代码在每次循环的时候都会创建了新的<code>StringBuilder</code>对象，所以这种情况可以在外部创建一个<code>StringBuilder</code>对象，在循环内调用<code>append</code>方法</p>
+</blockquote>
+<pre><code>for(int i = 0; i &lt; 100; i++) {  
+    s += &quot;a&quot;;    
+}   
+</code></pre>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/2BMnKUqqq/" class="tag">
+                    优化
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/handler-ji-zhi-jie-xi/">
+                  <h3 class="post-title">
+                    Handler机制解析
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Okhttp的Interceptor拦截器源码解析 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="拦截器的作用在APP开发中是相当重要的，这篇文章分析一下Okhttp中是怎么实现一条拦截器链，希望能帮助大家更好去了解拦截器的作用
+
+几个关键类以及接口
+
+
+RealInterceptorChain
+
+
+Interceptor
+
+
+Real..." />
+    <meta name="keywords" content="源码" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Okhttp的Interceptor拦截器源码解析</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="拦截器的作用在app开发中是相当重要的这篇文章分析一下okhttp中是怎么实现一条拦截器链希望能帮助大家更好去了解拦截器的作用">拦截器的作用在APP开发中是相当重要的，这篇文章分析一下Okhttp中是怎么实现一条拦截器链，希望能帮助大家更好去了解拦截器的作用</h4>
+<!-- more -->
+<h3 id="几个关键类以及接口">几个关键类以及接口</h3>
+<ul>
+<li>
+<h4 id="realinterceptorchain">RealInterceptorChain</h4>
+</li>
+<li>
+<h4 id="interceptor">Interceptor</h4>
+</li>
+</ul>
+<h3 id="realinterceptorchain-2">RealInterceptorChain</h3>
+<h4 id="realinterceptorchain实现了interceptor接口调用源头来自于realcall的getresponsewithinterceptorchain方法"><code>RealInterceptorChain</code>实现了<code>Interceptor</code>接口,调用源头来自于<code>RealCall</code>的<code>getResponseWithInterceptorChain</code>方法</h4>
+<pre><code class="language-java">  Response getResponseWithInterceptorChain() throws IOException {
+    // Build a full stack of interceptors.
+    List&lt;Interceptor&gt; interceptors = new ArrayList&lt;&gt;();
+    /**
+    *  1
+    */
+    interceptors.addAll(client.interceptors());
+    interceptors.add(retryAndFollowUpInterceptor);
+    interceptors.add(new BridgeInterceptor(client.cookieJar()));
+    interceptors.add(new CacheInterceptor(client.internalCache()));
+    interceptors.add(new ConnectInterceptor(client));
+    if (!forWebSocket) {
+      interceptors.addAll(client.networkInterceptors());
+    }
+    interceptors.add(new CallServerInterceptor(forWebSocket));
+    /**
+    *  2
+    */
+    Interceptor.Chain chain = new RealInterceptorChain(
+        interceptors, null, null, null, 0, originalRequest);
+    return chain.proceed(originalRequest);
+  }
+</code></pre>
+<h4 id="1-第一处是把自定义的拦截器先加入进去然后把okhttp内置的一些拦截器按照功能顺序add进list里">1. 第一处是把自定义的拦截器先加入进去，然后把okhttp内置的一些拦截器按照功能顺序add进list里</h4>
+<h4 id="2-第二处是整个拦截器工作的源头先new了一个realinterceptorchainindex为0把初始的request传了进去然后调用proceed获取请求的response">2. 第二处是整个拦截器工作的源头，先new了一个<code>RealInterceptorChain</code>,index为0，把初始的<code>request</code>传了进去,然后调用<code>proceed</code>获取请求的<code>response</code></h4>
+<h4 id="接下来看一下proceed方法的具体实现忽略掉一些检查">接下来看一下proceed方法的具体实现,忽略掉一些检查</h4>
+<pre><code class="language-java">public Response proceed(Request request, StreamAllocation streamAllocation, HttpCodec httpCodec,
+      RealConnection connection) throws IOException {
+    if (index &gt;= interceptors.size()) throw new AssertionError();
+
+    calls++;
+    /**
+    *  1
+    */
+    // Call the next interceptor in the chain.
+    RealInterceptorChain next = new RealInterceptorChain(interceptors, streamAllocation, httpCodec,
+        connection, index + 1, request, call, eventListener, connectTimeout, readTimeout,
+        writeTimeout);
+    Interceptor interceptor = interceptors.get(index);
+    Response response = interceptor.intercept(next);
+
+    return response;
+  }
+</code></pre>
+<h5 id="先是检查一下index是否超出interceptors也就是拦截器list的长度接着又new了一个realinterceptorchain把当前realinterceptorchain的一些参数属性都传了进去并且在这里把index-1这个地方很重要在这里可以把realinterceptorchain想象成把拦截器给包装了起来然后用下一个拦截器生成一个新的realinterceptorchain中然后把index1下标的chain传进了当前拦截器的intercept方法里也就是我们自定义拦截器的时候需要重写的intercept方法也就是说我们添加的拦截器里的intercept方法中realinterceptorchain对象实际上里面包含有整个request以及下一个拦截器-所以就形成了一条链每一个拦截器都持有下一个拦截器经过包装之后的realinterceptorchain对象直到拦截器链的最后一个拦截器callserverinterceptor-这个拦截器会做最后的处理然后开始请求生成response并且返回-拦截器可以通过intercept方法获取下一个拦截器return的response而且会通过proceed方法向下一个拦截器传递自己处理过的requeset">先是检查一下index是否超出<code>interceptors</code>也就是拦截器list的长度，接着又new了一个<code>RealInterceptorChain</code>，把当前<code>RealInterceptorChain</code>的一些参数属性都传了进去，并且在这里把<code>index + 1</code>,这个地方很重要，在这里可以把<code>RealInterceptorChain</code>想象成把拦截器给包装了起来，然后用下一个拦截器生成一个新的<code>RealInterceptorChain</code>中，然后把<code>index+1</code>下标的<code>chain</code>传进了当前拦截器的<code>intercept</code>方法里，也就是我们自定义拦截器的时候需要重写的<code>intercept</code>方法，也就是说我们添加的拦截器里的<code>intercept</code>方法中<code>RealInterceptorChain</code>对象，实际上里面包含有整个<code>request</code>以及下一个拦截器。所以就形成了一条链，每一个拦截器都持有下一个拦截器经过包装之后的<code>RealInterceptorChain</code>对象,直到拦截器链的最后一个拦截器<code>CallServerInterceptor</code> 这个拦截器会做最后的处理，然后开始请求生成<code>Response</code>并且返回。拦截器可以通过<code>intercept</code>方法获取下一个拦截器<code>return</code>的<code>response</code>,而且会通过<code>proceed</code>方法向下一个拦截器传递自己处理过的<code>Requeset</code></h5>
+<hr>
+<h4 id="到这里总结一下各个方法以及类的作用">到这里总结一下各个方法以及类的作用</h4>
+<ul>
+<li>
+<h4 id="realinterceptorchain-3">RealInterceptorChain</h4>
+</li>
+</ul>
+<blockquote>
+<p>包装了拦截器以及网络请求的信息</p>
+</blockquote>
+<ul>
+<li>
+<h4 id="realinterceptorchainproceed">RealInterceptorChain.proceed</h4>
+</li>
+</ul>
+<blockquote>
+<p>参数中有<code>Request</code>,是上一个拦截器包装过后的<code>Request</code>,然后将下一个拦截器和整个<code>Request</code>的信息包装成<code>RealInterceptorChain</code>，并且会调用当前拦截器的<code>intercept</code>方法把下一个拦截器(<code>RealInterceptorChain</code>)传进去，并且获取到<code>Response</code></p>
+</blockquote>
+<ul>
+<li>
+<h4 id="interceptorintercept">Interceptor.intercept</h4>
+</li>
+</ul>
+<blockquote>
+<p>方法参数是下一个<code>Chain</code>也就是<code>RealInterceptorChain</code>，然后调用<code>RealInterceptorChain.request()</code>去获取请求,调用<code>RealInterceptorChain.proceed()</code>去获取<code>Response</code></p>
+</blockquote>
+<h4 id="这三点结合在一起就形成了一条链假设有拦截器abcrealinterceptorchain-abc">这三点结合在一起，就形成了一条链，假设有拦截器A/B/C,RealInterceptorChain A/B/C</h4>
+<h4 id="raproceed-aintercept调用下一个拦截器的proceed-rbproceed-bintercept这样的写法可以让每个拦截器都获取到上一个拦截器包装过的request并且自己处理之后再传给下一个拦截器然后最后一个拦截器生成response之后从拦截器链尾部往头部拦截器一层层return就形成了一个完整的拦截器链处理逻辑">RA.<code>proceed</code>-&gt;A.<code>intercept</code>（调用下一个拦截器的<code>proceed</code>）-&gt;RB.<code>proceed</code>-&gt;B.<code>intercept</code>，这样的写法，可以让每个拦截器都获取到上一个拦截器包装过的<code>Request</code>并且自己处理之后再传给下一个拦截器，然后最后一个拦截器生成<code>Response</code>之后，从拦截器链尾部往头部拦截器一层层return，就形成了一个完整的拦截器链处理逻辑</h4>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/9UOs1hGim/" class="tag">
+                    源码
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/yi-ge-chao-gao-zi-ding-yi-du-you-jian-dan-shi-yong-de-ye-mian-zhuang-tai-guan-li-ku/">
+                  <h3 class="post-title">
+                    一个超高自定义度又简单使用的页面状态管理库
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

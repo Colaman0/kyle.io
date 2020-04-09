@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>RecyclerView源码解析 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="作为一个很重要的view，recyclerview内部实现也是很复杂的，下面简单概括以及总结一下一些比较重要的方法以及实现的思路
+
+
+关键性几个方法以及变量
+
+dispatchLayoutStep1
+dispatchLayoutStep2
+..." />
+    <meta name="keywords" content="源码" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">RecyclerView源码解析</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h4 id="作为一个很重要的viewrecyclerview内部实现也是很复杂的下面简单概括以及总结一下一些比较重要的方法以及实现的思路">作为一个很重要的view，recyclerview内部实现也是很复杂的，下面简单概括以及总结一下一些比较重要的方法以及实现的思路</h4>
+<!-- more -->
+<figure data-type="image" tabindex="1"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f67321972959?w=960&amp;h=960&amp;f=png&amp;s=458638" alt="image.png" loading="lazy"></figure>
+<h3 id="关键性几个方法以及变量">关键性几个方法以及变量</h3>
+<ul>
+<li>dispatchLayoutStep1</li>
+<li>dispatchLayoutStep2</li>
+<li>dispatchLayoutStep3</li>
+<li>ViewInfoStore</li>
+<li>ViewInfoStore.ProcessCallback</li>
+</ul>
+<h4 id="dispatchlayoutstep1">dispatchLayoutStep1</h4>
+<blockquote>
+<p>第一步负责把旧的viewholder的信息记录下来，包括position，top，left等位置的信息，封装成<code>ItemHolderInfo</code><br>
+作为一个成员放置到<code>ViewInfoStore.InfoRecord</code>中的<code>preInfo</code>变量然后放到<code>ViewInfoStore</code>中，<br>
+具体可以查看 <code>addToAppearedInPreLayoutHolders</code>/<code>addToPreLayout</code>方法</p>
+</blockquote>
+<h4 id="dispatchlayoutstep2">dispatchLayoutStep2</h4>
+<blockquote>
+<p>第二步负责view的布局，这一步由<code>layoutmanager</code>来处理，比如设置的<code>LinearlayoutManager</code>等</p>
+</blockquote>
+<h4 id="dispatchlayoutstep3">dispatchLayoutStep3</h4>
+<blockquote>
+<p>第三步负责动画的显示，先是把布局过后的view的信息记录下来，调用了<code>addToPostLayout</code>方法，封装成<code>ItemHolderInfo</code><br>
+作为一个成员放置到<code>ViewInfoStore.InfoRecord</code>中然后放到<code>ViewInfoStore</code>中，这里的是记录在了<code>InfoRecord</code>的<code>postInfo</code>中去,最后调用<code>this.mViewInfoStore.process(this.mViewInfoProcessCallback);</code> 去开始对view进行动画操作</p>
+</blockquote>
+<h5 id="这里step1和step3中分别用一个itemholderinfo记录了布局前后view的信息然后放在了inforecord中的preinfo以及postinfo中这样一个inforecord就可以记录一个holder在布局改变前后的位置信息方便后续做动画上的变化">这里step1和step3中分别用一个ItemHolderInfo记录了布局前后view的信息，然后放在了<code>InfoRecord</code>中的<code>preInfo</code>以及<code>postInfo</code>中，这样一个<code>InfoRecord</code>就可以记录一个holder在布局改变前后的位置信息，方便后续做动画上的变化</h5>
+<h4 id="onmeasure">OnMeasure</h4>
+<blockquote>
+<p>这里的测量分两种方式,recyclerview有默认的测量策略，layoutmanager可以通过关闭autoMeasure来接管测量的逻辑，但是一般的都是使用默认的测量，</p>
+</blockquote>
+<pre><code> int widthMode = MeasureSpec.getMode(widthSpec);
+                int heightMode = MeasureSpec.getMode(heightSpec);
+                this.mLayout.onMeasure(this.mRecycler, this.mState, widthSpec, heightSpec);
+                boolean measureSpecModeIsExactly = widthMode == 1073741824 &amp;&amp; heightMode == 1073741824;
+                // 表明如果recyclerview有一个确切的宽高，就直接结束流程，否则就要开始下面的逻辑
+                if (measureSpecModeIsExactly || this.mAdapter == null) {
+                    return;
+                }
+                // 如果recyclerview是wrapcontent，宽高无法确定，就需要先去排列view，计算出高度再去设置
+                // 这里的state记录了当前layout进行到了第几步，详细可以看下面的介绍
+                if (this.mState.mLayoutStep == 1) {
+                    this.dispatchLayoutStep1();
+                }
+
+                this.mLayout.setMeasureSpecs(widthSpec, heightSpec);
+                this.mState.mIsMeasuring = true;
+                this.dispatchLayoutStep2();
+                this.mLayout.setMeasuredDimensionFromChildren(widthSpec, heightSpec);
+                if (this.mLayout.shouldMeasureTwice()) {
+                    this.mLayout.setMeasureSpecs(MeasureSpec.makeMeasureSpec(this.getMeasuredWidth(), 1073741824), MeasureSpec.makeMeasureSpec(this.getMeasuredHeight(), 1073741824));
+                    this.mState.mIsMeasuring = true;
+                    this.dispatchLayoutStep2();
+                    this.mLayout.setMeasuredDimensionFromChildren(widthSpec, heightSpec);
+                }
+</code></pre>
+<h5 id="recyclerviewstate-这个类封装了当前recyclerview的有用信息-state的一个变量mlayoutstep表示了recyclerview当前的布局状态包括step_start-step_layout-step_animations三个而recyclerview的布局过程也分为三步其中step_start表示即将开始布局需要调用dispatchlayoutstep1来执行第一步布局接下来布局状态变为step_layout表示接下来需要调用dispatchlayoutstep2里进行第二步布局同理第二步布局后状态变为step_animations需要执行第三步布局dispatchlayoutstep3-所以onmeasure如果已经进行了第12步后续dispatchlayout方法里只会执行第三步避免重复测量"><code>RecyclerView.State</code> 这个类封装了当前RecyclerView的有用信息。State的一个变量mLayoutStep表示了RecyclerView当前的布局状态，包括<code>STEP_START</code>、<code>STEP_LAYOUT</code> 、 <code>STEP_ANIMATION</code>S三个，而RecyclerView的布局过程也分为三步，其中，<code>STEP_START</code>表示即将开始布局，需要调用<code>dispatchLayoutStep1</code>来执行第一步布局，接下来，布局状态变为<code>STEP_LAYOUT</code>，表示接下来需要调用<code>dispatchLayoutStep2</code>里进行第二步布局，同理，第二步布局后状态变为<code>STEP_ANIMATIONS</code>，需要执行第三步布局<code>dispatchLayoutStep3</code>。所以<code>OnMeasure</code>如果已经进行了第1，2步，后续<code>dispatchLayout</code>方法里只会执行第三步，避免重复测量</h5>
+<hr>
+<h4 id="adapter">Adapter</h4>
+<ul>
+<li>AdapterDataObserver</li>
+<li>AdapterDataObservable</li>
+</ul>
+<p>adapter中的数据刷新是通过观察者模式来触发的，adapter内有一个<code>AdapterDataObservable</code>对象，当我们调用adapter的noti类方法通知recyclerview刷新的时候，<code>AdapterDataObservable</code>会通知观察者也就是<code>AdapterDataObserver</code> ，而<code>AdapterDataObserver</code>对象在recyclerview 里有一个实例化对象<code>RecyclerViewDataObserver</code>可以查看内部代码，这里的代码就是最后去刷新的逻辑</p>
+<h5 id="1调用adapterhelper中的具体方法去判断是否执行刷新操作方法内会记录当前操作类型是addmovechange还有itemvcount等信息一般返回true如果是notifydatasetchanged就直接执行到requestlayout-跳到第7点">1.调用<code>Adapterhelper</code>中的具体方法去判断是否执行刷新操作，方法内会记录当前操作类型是add/move/change还有itemvcount等信息，一般返回true,如果是<code>notifyDataSetChanged</code>就直接执行到<code>requestLayout</code> 跳到第<code>7</code>点</h5>
+<h5 id="2triggerupdateprocessor">2.<code>triggerUpdateProcessor</code></h5>
+<h5 id="3-执行mupdatechildviewsrunnable这个runnable">3. 执行<code>mUpdateChildViewsRunnable</code>这个runnable</h5>
+<h5 id="4-consumependingupdateoperations">4. <code>consumePendingUpdateOperations</code></h5>
+<h5 id="5-adapterhelper的preprocess去判断要add还是remove等操作">5. <code>AdapterHelper</code>的<code>preProcess</code>去判断要add还是remove等操作</h5>
+<h5 id="6-调用adapterhelper的preprocess去回调到recyclerview中的对应的方法然后调用offsetpositionsforadd等方法去确认变换过后的viewhodler的位置信息比如add-remove-之后其他item的坐标等同时把cachedview也做同样的操作">6. 调用<code>AdapterHelper</code>的<code>preProcess</code>去回调到<code>recyclerview</code>中的对应的方法，然后调用<code>offsetPositionsForAdd</code>等方法，去确认变换过后的<code>viewhodler</code>的位置信息，比如add remove 之后其他item的坐标等，同时把<code>cachedview</code>也做同样的操作</h5>
+<h5 id="7-调用dispathchlayout方法走一遍测绘流程就是一开始说的三步这个时候新旧viewholder的信息被分别记录起来最后调用thismviewinfostoreprocessthismviewinfoprocesscallback">7. 调用<code>dispathchLayout</code>方法，走一遍测绘流程，就是一开始说的三步，这个时候新旧viewholder的信息被分别记录起来,最后调用<code>this.mViewInfoStore.process(this.mViewInfoProcessCallback);</code></h5>
+<h5 id="8-在这里面根据viewholder前后信息去判断具体每个view是添加删除还是移动等操作回调到recyclerview里的mviewinfoprocesscallback也就是上面的callback然后run一个runnable让recyclerview的itemanimator对象调用runpendinganimations去开始对view进行动画操作具体可以查看defaultitemanimator里的实现">8. 在这里面根据viewholder前后信息，去判断具体每个view是添加删除还是移动等操作，回调到recyclerview里的<code>mViewInfoProcessCallback</code>也就是上面的callback，然后run一个runnable，让recyclerview的<code>ItemAnimator</code>对象调用<code>runPendingAnimations</code>去开始对view进行动画操作，具体可以查看<code>DefaultItemAnimator</code>里的实现</h5>
+<h4 id="notifydatasetchanged">notifyDataSetChanged</h4>
+<blockquote>
+<p>notifyDataSetChanged会调用<code>processDataSetCompletelyChanged</code>，方法里把<code>mDataSetHasChangedAfterLayout</code>设为了true，后续在step1里<code>processAdapterUpdatesAndSetAnimationFlags</code>判断把<code>mRunSimpleAnimations</code>和<code>mRunPredictiveAnimations</code>射程了<code>false</code>，所以就跳过了记录<code>旧holder</code>这一步，所以调用的时候没有完整的动画</p>
+</blockquote>
+<figure data-type="image" tabindex="2"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f67321957ece?w=1090&amp;h=719&amp;f=png&amp;s=120457" alt="image.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="3"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f67321bd289a?w=1045&amp;h=348&amp;f=png&amp;s=54199" alt="image.png" loading="lazy"></figure>
+<figure data-type="image" tabindex="4"><img src="https://user-gold-cdn.xitu.io/2019/7/23/16c1f67321bbc76a?w=1240&amp;h=408&amp;f=png&amp;s=201599" alt="image.png" loading="lazy"></figure>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/9UOs1hGim/" class="tag">
+                    源码
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/rxjava2-jie-xi-ding-yue-liu-cheng/">
+                  <h3 class="post-title">
+                    Rxjava2解析-订阅流程
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>

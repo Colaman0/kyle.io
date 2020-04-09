@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Kotlin协程学习之路【一】 | Kyle</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://colaman0.github.io/kylelin//favicon.ico?v=1586416122390">
+<link rel="stylesheet" href="https://colaman0.github.io/kylelin//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="协程介绍
+
+本质上，协程像是轻量级的线程
+
+在我们编程的过程中 难免会出现异步编程和一些回调函数，这就很容易出现callback hell 回调地狱 ，也就是说可能出现大量嵌套代码，这种代码在视觉效果以及逻辑维护上都堪称地狱级代码，很容易给..." />
+    <meta name="keywords" content="kotlin" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://colaman0.github.io/kylelin/">
+        <img src="https://colaman0.github.io/kylelin//images/avatar.png?v=1586416122390" class="site-logo">
+        <h1 class="site-title">Kyle</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="https://github.com/Colaman0" class="site-nav">
+            Github
+          </a>
+        
+      
+        
+          <a href="https://juejin.im/user/595b3c38f265da6c40735759" class="site-nav">
+            掘金
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      be a better me
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://colaman0.github.io/kylelin//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Kotlin协程学习之路【一】</h2>
+            <div class="post-date">2020-04-09</div>
+            
+            <div class="post-content" v-pre>
+              <h3 id="协程介绍">协程介绍</h3>
+<blockquote>
+<h5 id="本质上协程像是轻量级的线程">本质上，协程像是轻量级的线程</h5>
+</blockquote>
+<h5 id="在我们编程的过程中-难免会出现异步编程和一些回调函数这就很容易出现callback-hell-回调地狱-也就是说可能出现大量嵌套代码这种代码在视觉效果以及逻辑维护上都堪称地狱级代码很容易给程序员带来困扰">在我们编程的过程中 难免会出现异步编程和一些回调函数，这就很容易出现<code>callback hell 回调地狱</code> ，也就是说可能出现大量嵌套代码，这种代码在视觉效果以及逻辑维护上都堪称地狱级代码，很容易给程序员带来困扰。</h5>
+<h5 id="在这之前大家可能接触比较多的是像rxjava这种用于处理异步编程的框架有各种操作符以及流式调用等特点方便进行异步编程而协程在这方面和rxjava这种框架不同协程做到了让代码看起来更直白更具有逻辑性至于怎么让代码看起来更通俗易懂可以看看接下来我在学习协程中个人的一些理解和总结">在这之前大家可能接触比较多的是像<code>Rxjava</code>这种用于处理异步编程的框架，有各种操作符以及流式调用等特点方便进行异步编程，而协程在这方面和<code>Rxjava</code>这种框架不同，协程做到了让代码看起来更直白更具有逻辑性，至于怎么让代码看起来更通俗易懂，可以看看接下来我在学习协程中个人的一些理解和总结</h5>
+<hr>
+<h3 id="创建协程">创建协程</h3>
+<p>举两个简单的创建方法 <code>runBlocking { }</code> 以及 <code>GlobalScope.launch { }</code></p>
+<h4 id="runblocking"><code>runBlocking { }</code></h4>
+<blockquote>
+<p><code>runBlocking</code>创建了一个协程，并且会阻塞当前线程，等待作用域也就是<code>{}</code>内的代码以及所有子协程结束，并且<code>runBlocking</code> 是有返回值的，但是由于会阻塞线程，所以用的情况不多，在这里做一个入门讲解</p>
+</blockquote>
+<h4 id="globalscopelaunch"><code>GlobalScope.launch { }</code></h4>
+<blockquote>
+<p>通过这个方法创建出来的协程是一个顶层的协程，它的生命周期跟<code>application</code>是一样的，没有返回值，也不可以取消，并且不会阻塞当前线程，这一点和<code>runBlocking { }</code> 正好相反</p>
+</blockquote>
+<p>通过下面一段代码让大家了解一下用法</p>
+<pre><code class="language-kotlin">// 简单的输出一句Hello World
+GlobalScope.launch {  
+    print(&quot;Hello World&quot;)
+}
+</code></pre>
+<hr>
+<h3 id="launch和job"><code>launch</code>和<code>Job</code></h3>
+<blockquote>
+<p><code>launch</code>是以不阻塞的方式去启动一个新的协程，需要在协程的范围内去调用，比如上面提到<code>runBlocking</code> <code>couroutineScope</code>，并且会返回一个<code>Job</code>用来控制任务的开始取消等操作</p>
+</blockquote>
+<pre><code>public fun CoroutineScope.launch(
+    context: CoroutineContext = EmptyCoroutineContext,
+    start: CoroutineStart = CoroutineStart.DEFAULT,
+    block: suspend CoroutineScope.() -&gt; Unit
+): Job {
+    val newContext = newCoroutineContext(context)
+    val coroutine = if (start.isLazy)
+        LazyStandaloneCoroutine(newContext, block) else
+        StandaloneCoroutine(newContext, active = true)
+    coroutine.start(start, coroutine, block)
+    return coroutine
+}
+</code></pre>
+<h4 id="上面是launch的构造方法有三个参数">上面是<code>launch</code>的构造方法，有三个参数</h4>
+<ul>
+<li><code>context</code>：可以传入一个调度器<code>Dispatchers</code>来控制协程启动选项，默认的参数是<code>CoroutineStart.DEFAULT</code>也就是按当前的上下文环境去启动，如果我们想在IO线程中启动，可以传入<code>Dispatchers.IO</code> 还有像<code>Dispatchers.Main</code>就是在主线程中去启动</li>
+<li><code>start</code>：如果我们想去控制协程的启动时机，可以通过<code>start</code>传入一个<code>CoroutineStart</code>，默认的<code>CoroutineStart</code>是立即启动，如果想要延时启动可以传入<code>CoroutineStart.LAZY</code>, 然后在需要启动的时候调用<code>Job</code>的<code>join</code>方法</li>
+<li><code>block</code>：让协程在传入的协程范围内去运行</li>
+</ul>
+<h4 id="构建launch的方法讲完之后就讲一下job的作用job有几个常用的方法像是join-cancel-cancelandjoin">构建<code>launch</code>的方法讲完之后就讲一下<code>Job</code>的作用，<code>Job</code>有几个常用的方法，像是<code>join</code> <code>cancel</code> <code>cancelAndJoin</code></h4>
+<ul>
+<li>
+<p><code>join</code>：启动协程任务并且会以一个非阻塞的方式去等待这个<code>Job</code>完成</p>
+</li>
+<li>
+<p><code>cancel</code>：取消任务</p>
+</li>
+<li>
+<p><code>cancelAndJoin</code>：综合上面两个方法，实际上内部就是先调用了<code>cancel</code>再调用<code>join</code>,也就是说会等待协程内的任务完成之后，再继续往下执行代码，如果是<code>cancel</code>的话，那么调用的时候协程内的任务就会直接中断</p>
+<blockquote>
+<p>以上两种cancel，举个在安卓中的实际场景，比如一个草稿箱功能 ，用户在点击退出之后弹出一个loading框，这个时候可以用<code>cancelAndJoin</code>等待上传完成之后再dissmiss，如果用户选择直接退出，那么可以用<code>cancel</code></p>
+</blockquote>
+<blockquote>
+<p>另外被取消的协程，会抛出一个<code>CancellationException</code>异常，表示协程被正常取消，如果你没有捕获错误的话，不会打印到控制台/日志</p>
+</blockquote>
+</li>
+<li>
+<p><code>isActive</code>：这是一个判断当前协程是否还存活的标记，可以在任务中根据这个属性决定任务是否继续</p>
+</li>
+</ul>
+<h4 id="在协程中如果你想要在任务结束之后做一些操作那么你可以用tryfinally这样的操作把任务逻辑写在try中在finally中释放资源">在协程中如果你想要在任务结束之后做一些操作，那么你可以用<code>try{}finally{}</code>这样的操作把任务逻辑写在<code>try</code>中，在<code>finally</code>中释放资源</h4>
+<hr>
+<h3 id="作用域构建器">作用域构建器</h3>
+<blockquote>
+<p>除了由不同的构建器提供协程作用域之外，还可以使用 <code>coroutineScope</code> 构建器声明自己的作用域。它会创建一个协程作用域并且在所有已启动子协程执行完毕之前不会结束。<code>coroutineScope</code> 是非阻塞式的，是挂起函数，而<code>runBlocking</code> 是阻塞式，属于常规的函数，但是两者都会等待各自作用域中的所有子协程结束</p>
+</blockquote>
+<h5 id="关于上面说的runblocking-是阻塞式coroutinescope是非阻塞式可以通过下面一段代码来体现">关于上面说的<code>runBlocking { }</code>是阻塞式，<code>coroutineScope</code>是非阻塞式，可以通过下面一段代码来体现</h5>
+<pre><code>import kotlinx.coroutines.*
+
+fun main() = runBlocking { 
+    // 用launch启动一个子协程
+    launch { 
+        delay(200L)
+        println(&quot;Task from runBlocking&quot;)
+    }
+    
+    // 创建一个协程作用域
+    coroutineScope { 
+        launch {
+            delay(500L) 
+            println(&quot;Task from nested launch&quot;)
+        }
+    
+        delay(100L)
+        println(&quot;Task from coroutine scope&quot;) // 这一行会在内嵌 launch 之前输出
+    }
+    
+    println(&quot;Coroutine scope is over&quot;) // 这一行在内嵌 launch 执行完毕后才输出
+}
+
+
+最终的输出结果：x
+Task from coroutine scope 
+Task from runBlocking 
+Task from nested launch 
+Coroutine scope is over
+
+</code></pre>
+<h5 id="这一段代码取自kotlin官方文档用来说明runblocking-和coroutinescope的阻塞以及非阻塞式区别有的人可能会觉得有点疑惑代码上看起来coroutinescope后面的打印总是会在最后才输出看起来似乎coroutinescope才是阻塞式的br-然而并不是这样task-from-runblocking这一段先打印相信大家可以明白接着代码运行到了coroutinescope作用域里作用域中有子协程相信大家也能明白作用域中打印的顺序那么问题来了为什么coroutine-scope-is-over总是在最后打印-br-其实是因为上面所提到的阻塞和非阻塞式特点coroutinescope作用域会以非阻塞式的等待所有子协程完成所以内部第一个launch在运行到delay的时候并没有阻塞住线程而是继续运行下去所以会先打印延时比较短的task-from-coroutine-scope之后delay时间到了协程切回去打印了task-from-nested-launch而由于coroutinescope是在runblocking-当中所以当couroutinescope没有结束之前runblocking会阻塞当前线程等待所以在coroutinescope内部delay没有结束没有打印完成之前最后一句println并不会被执行到"> 这一段代码取自kotlin官方文档，用来说明<code>runBlocking { }</code>和<code>coroutineScope</code>的阻塞以及非阻塞式区别，有的人可能会觉得有点疑惑，代码上看起来<code>coroutineScope</code>后面的打印总是会在最后才输出，看起来似乎<code>coroutineScope</code>才是阻塞式的<br> 然而并不是这样，<code>Task from runBlocking</code>这一段先打印相信大家可以明白，接着代码运行到了<code>coroutineScope</code>作用域里，作用域中有子协程，相信大家也能明白作用域中打印的顺序，那么问题来了，为什么<code>Coroutine scope is over</code>总是在最后打印。<br> 其实是因为上面所提到的阻塞和非阻塞式特点，<code>coroutineScope</code>作用域会以非阻塞式的等待所有子协程完成，所以内部第一个<code>launch</code>在运行到<code>delay</code>的时候并没有阻塞住线程，而是继续运行下去，所以会先打印延时比较短的<code>Task from coroutine scope</code>，之后<code>delay</code>时间到了协程切回去打印了<code>Task from nested launch</code>，而由于<code>coroutineScope</code>是在<code>runBlocking</code> 当中，所以当<code>couroutineScope</code>没有结束之前，<code>runBlocking</code>会阻塞当前线程等待，所以在<code>coroutineScope</code>内部<code>delay</code>没有结束，没有打印完成之前，最后一句<code>println</code>并不会被执行到。</h5>
+<hr>
+<h3 id="这篇文章就暂时讲这么多知识点接下来我也会根据自己在学习协程过程的一些疑惑以及总结陆续写后续的相关文章">这篇文章就暂时讲这么多知识点，接下来我也会根据自己在学习协程过程的一些疑惑以及总结陆续写后续的相关文章</h3>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://colaman0.github.io/kylelin/tag/TTsKuuBJC/" class="tag">
+                    kotlin
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://colaman0.github.io/kylelin/post/nei-cun-you-hua-xiang-guan/">
+                  <h3 class="post-title">
+                    内存优化相关
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>
